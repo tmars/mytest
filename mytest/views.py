@@ -2,8 +2,10 @@
 import json
 import datetime
 import time
+import re
 
 from django.template import Context, Template, loader
+from django.utils import timezone
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
 from django import forms
@@ -16,13 +18,53 @@ class MessageForm(forms.Form):
 def get_timestamp(d):
     return int(time.mktime(d.timetuple()))
 
+def parse_message(msg):
+    msg = msg.lower()
+    if not msg.startswith(u'бот, '):
+        return False
+    msg = msg[5:]
+
+    url_p = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+    patterns = {
+        'get_title': u'дай мне заголовок сайта (%s)' % url_p,
+        'get_h1': u'дай мне h1 с сайта (%s)' % url_p,
+        'save': u'сохрани для меня информацию (.*)',
+        'remind': u'напомни мне (.*) через (\d+) (секунд|минут)',
+        'get_titles': u'дай мне все варианты заголовков с сайтов ((%s,)%s)' % (url_p, url_p),
+    }
+
+    for k,p in patterns.iteritems():
+        r = re.match(p, msg)
+        if r:
+            return k, r.groups()
+
+    return None
+
+def exec_message(msg):
+    if not msg:
+        return None
+
+    mode, args = msg
+    if mode == 'remind':
+        content, val, mode = args
+        m = Message()
+        m.content = u'Напоминаю: %s' % content
+        m.author = 'Бот'
+        if mode == u'секунд':
+            ss = int(val)
+        elif mode == u'минут':
+            ss = int(val) * 60
+        m.created_at = timezone.now() + datetime.timedelta(seconds=ss)
+        m.save()
+        return m.id
+
 def home(request):
     if 'name' not in request.session:
         return redirect('auth')
 
     form = MessageForm()
-    qs = Message.objects.all()
-    ms = list(qs)
+    qs = Message.objects.all().order_by('-created_at')
+    ms = list(qs[:5:-1])
 
     ts = 0
     if len(ms):
@@ -65,8 +107,12 @@ def ajax_put_message(request):
         m.author = request.session['name']
         m.save()
 
+        msg = parse_message(m.content)
+        pk = exec_message(msg)
+
         return HttpResponse(json.dumps({
-            'status': 'success',    
+            'status': 'success',
+            'pk': pk,
         }))
 
     else:
@@ -86,7 +132,8 @@ def ajax_get_messages(request):
             'error': 'not timestamp',
         }))
     
-    qs = Message.objects.filter(created_at__gt=d)
+    qs = Message.objects \
+        .filter(created_at__gt=d, created_at__lt=timezone.now())
     ms = list(qs)
     content = ''
 
