@@ -1,0 +1,58 @@
+{% extends 'mytest/base.html' %}
+
+{% block title %}Чат{% endblock %}
+{% block scripts %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){
+  $('form').submit(function(e){
+    e.preventDefault();
+    var data = $(this).serialize();
+    $(this).find("input[type=text], textarea").val("");
+    $.ajax({
+      type: "POST",
+      url: "{% url 'ajax_put_message' %}",
+      data: data,
+      success: function(data){
+        console.log(data);
+      },
+      dataType: 'json',
+    });
+
+  })
+});
+
+var current_ts = {{ts}};
+var ajax_call = function() {
+  console.log('get')
+  $.ajax({
+    type: "GET",
+    url: "{% url 'ajax_get_messages' %}",
+    data: {ts: current_ts},
+    success: function(data){
+      console.log(data);
+      if (data.status == 'success') {
+        current_ts = data.ts;
+        $('#chat-box').append(data.content);
+      }
+    },
+    dataType: 'json',
+  });
+};
+
+var interval = 1000 * 1; // where X is your every X minutes
+setInterval(ajax_call, interval);
+</script>
+{% endblock %}
+
+{% block content %}
+<div id="chat-box">
+  {% include 'mytest/messages.html' %}
+</div>
+<form action="" method="post">
+    {% csrf_token %}
+    {{ form }}
+    <br>
+    <input type="submit" value="Отправить" />
+</form>
+{% endblock %}

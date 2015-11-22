@@ -1,0 +1,11 @@
+{% extends 'mytest/base.html' %}
+
+{% block title %}Авторизация{% endblock %}
+
+{% block content %}
+<form action="" method="post">
+    {% csrf_token %}
+    {{ form }}
+    <input type="submit" value="Войти" />
+</form>
+{% endblock %}

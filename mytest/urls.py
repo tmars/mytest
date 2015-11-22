@@ -18,4 +18,8 @@ from django.contrib import admin
 
 urlpatterns = [
     url(r'^admin/', include(admin.site.urls)),
+    url(r'^$', 'mytest.views.home', name='home'),
+    url(r'^auth/$', 'mytest.views.auth', name='auth'),
+    url(r'^ajax/put_message/$', 'mytest.views.ajax_put_message', name='ajax_put_message'),
+    url(r'^ajax/get_messages/$', 'mytest.views.ajax_get_messages', name='ajax_get_messages'),
 ]
