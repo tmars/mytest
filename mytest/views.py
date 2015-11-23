@@ -28,7 +28,8 @@ def parse_message(msg):
     patterns = {
         'get_title': u'дай мне заголовок сайта (%s)' % url_p,
         'get_h1': u'дай мне h1 с сайта (%s)' % url_p,
-        'save': u'сохрани для меня информацию (.*)',
+        'save': u'сохрани для меня информацию\s*(.*)',
+        'show': u'дай мне информацию (\d+)',
         'remind': u'напомни мне (.*) через (\d+) (секунд|минут)',
         'get_titles': u'дай мне все варианты заголовков с сайтов ((%s,)%s)' % (url_p, url_p),
     }
@@ -40,8 +41,18 @@ def parse_message(msg):
 
     return None
 
-def exec_message(request, msg):
-    if not msg:
+def exec_message(request, obj):
+    msg = parse_message(obj.content)
+
+    if msg == False:
+        return False
+
+    if msg == None:
+        m = Message()
+        m.content = u'КОМАНДА НЕ РАСПОЗНАНА'
+        m.session_key = request.session.session_key
+        m.author = u'Бот'
+        m.save()
         return None
 
     mode, args = msg
@@ -50,14 +61,97 @@ def exec_message(request, msg):
         m = Message()
         m.content = u'Напоминаю: %s' % content
         m.session_key = request.session.session_key
-        m.author = 'Бот'
+        m.author = u'Бот'
         if mode == u'секунд':
             ss = int(val)
         elif mode == u'минут':
             ss = int(val) * 60
         m.created_at = timezone.now() + datetime.timedelta(seconds=ss)
         m.save()
-        return m.id
+    
+    elif mode == 'save':
+        if args[0]:
+            # Если информация ВВЕДЕНА, то сохраняем ее и выводим ID
+            i = Info()
+            i.content = args[0]
+            i.save()
+
+            m = Message()
+            m.content = u'Иформация сохранена с ID=%d' % i.id
+            m.session_key = request.session.session_key
+            m.author = u'Бот'
+            m.save()
+
+        else:
+            # Если информация не введена
+            # смотрим предыдущее сообщение c задачей
+            # сохраняем результат задачи и выводим ID
+            qs = Message.objects \
+                .filter(created_at__lt=obj.created_at, task__isnull=False) \
+                .order_by('-created_at')
+            if qs.count() == 0:
+                m = Message()
+                m.content = u'Иформация для сохранения не определена'
+                m.session_key = request.session.session_key
+                m.author = u'Бот'
+                m.save()
+
+            t = qs[0].task
+            r = ''
+            if t.command == 'get_titles':
+                try:
+                    rs = json.loads(t.results)
+                    r = ',<br>'.join(['"%s"="%s"' % (k,v) for k,v in rs.iteritems()])
+                except:
+                    pass
+
+            i = Info()
+            i.content = '%s, %s' % (t.created_at, r)
+            i.save()
+
+            m = Message()
+            m.content = u'Иформация сохранена с ID=%d' % i.id
+            m.session_key = request.session.session_key
+            m.author = u'Бот'
+            m.save()
+
+    elif mode == 'show':
+        i = None
+        try:
+            i = Info.objects.get(pk=args[0])
+        except:
+            pass
+
+        if not i:
+            m = Message()
+            m.content = u'Иформация с ID=%s не найдена' % args[0]
+            m.session_key = request.session.session_key
+            m.author = u'Бот'
+            m.save()
+        else:
+            m = Message()
+            m.content = u'Иформация с ID=%s : %s' % (i.id, i.content)
+            m.session_key = request.session.session_key
+            m.author = u'Бот'
+            m.save()
+            
+    elif mode == 'get_title':
+        t = Task.create(mode, {'url': args[0]}, request.session.session_key)
+        t.run()
+        obj.task = t
+        obj.save()
+
+    elif mode == 'get_h1':
+        t = Task.create(mode, {'url': args[0]}, request.session.session_key)
+        t.run()
+        obj.task = t
+        obj.save()
+
+    elif mode == 'get_titles':
+        t = Task.create(mode, {'urls': args[0]}, request.session.session_key)
+        t.run()
+        obj.task = t
+        obj.save()
 
 def home(request):
     if 'name' not in request.session:
@@ -112,12 +206,10 @@ def ajax_put_message(request):
         m.session_key = request.session.session_key
         m.save()
 
-        msg = parse_message(m.content)
-        pk = exec_message(request, msg)
+        exec_message(request, m)
 
         return HttpResponse(json.dumps({
             'status': 'success',
-            'pk': pk,
         }))
 
     else:

@@ -1,3 +1,7 @@
 {% for m in list %}
-<дата {{ m.created_at|date:'d.m.Y H:i:s' }}> <{{ m.author }}>:{{ m.content }}<br>
+<дата {{ m.created_at|date:'d.m.Y H:i:s' }}> <{{ m.author }}>:
+{% autoescape off %}
+{{ m.content }}<br>
+{% endautoescape %}
+<hr>
 {% endfor %}

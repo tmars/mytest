@@ -5,6 +5,13 @@
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
 <script type="text/javascript">
 $(document).ready(function(){
+  $('#id_content').keypress(function (e) {
+    if(e.which == 13) {
+      $(this).closest('form').submit();
+      e.preventDefault();
+    }
+  });
+
   $('form').submit(function(e){
     e.preventDefault();
     var data = $(this).serialize();
