@@ -40,7 +40,7 @@ def parse_message(msg):
 
     return None
 
-def exec_message(msg):
+def exec_message(request, msg):
     if not msg:
         return None
 
@@ -49,6 +49,7 @@ def exec_message(msg):
         content, val, mode = args
         m = Message()
         m.content = u'Напоминаю: %s' % content
+        m.session_key = request.session.session_key
         m.author = 'Бот'
         if mode == u'секунд':
             ss = int(val)
@@ -61,9 +62,11 @@ def exec_message(msg):
 def home(request):
     if 'name' not in request.session:
         return redirect('auth')
-
+    
     form = MessageForm()
-    qs = Message.objects.all().order_by('-created_at')
+    qs = Message.objects \
+        .filter(session_key=request.session.session_key) \
+        .order_by('-created_at')
     ms = list(qs[:5:-1])
 
     ts = 0
@@ -84,6 +87,7 @@ def auth(request):
         form = AuthForm(request.POST)
         if form.is_valid():
             request.session['name'] = form.cleaned_data['name']
+    
             return redirect('home')
     else:
         form = AuthForm()
@@ -105,10 +109,11 @@ def ajax_put_message(request):
         m = Message()
         m.content = form.cleaned_data['content']
         m.author = request.session['name']
+        m.session_key = request.session.session_key
         m.save()
 
         msg = parse_message(m.content)
-        pk = exec_message(msg)
+        pk = exec_message(request, msg)
 
         return HttpResponse(json.dumps({
             'status': 'success',
@@ -132,8 +137,11 @@ def ajax_get_messages(request):
             'error': 'not timestamp',
         }))
     
-    qs = Message.objects \
-        .filter(created_at__gt=d, created_at__lt=timezone.now())
+    qs = Message.objects.filter(
+        created_at__gt=d, 
+        created_at__lt=timezone.now(),
+        session_key=request.session.session_key
+    )
     ms = list(qs)
     content = ''
 

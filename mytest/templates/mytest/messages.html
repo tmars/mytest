@@ -1,3 +1,3 @@
 {% for m in list %}
-<дата {{ m.created_at|date:'d.m.Y H:m:s' }}> <{{ m.author }}>:{{ m.content }}<br>
+<дата {{ m.created_at|date:'d.m.Y H:i:s' }}> <{{ m.author }}>:{{ m.content }}<br>
 {% endfor %}
